@@ -25,7 +25,9 @@ namespace NuGet.PackageManagement.VisualStudio
             IVsProjectThreadingService threadingService)
             : this(
                   threadingService,
-                  new AsyncLazy<SVsSolution>(() => serviceProvider.GetServiceAsync<SVsSolution>(), threadingService.JoinableTaskFactory))
+                  new AsyncLazy<SVsSolution>(async () =>
+
+                  { await threadingService.JoinableTaskFactory.SwitchToMainThreadAsync(); return await serviceProvider.GetServiceAsync<SVsSolution>(); }, threadingService.JoinableTaskFactory))
         {
         }
 
