@@ -827,7 +827,7 @@ namespace NuGet.PackageManagement.VisualStudio
 
                     await InitializeAsync();
 
-                    if(await IsSolutionOpenAsync())
+                    if (await IsSolutionOpenAsync())
                     {
                         await OnSolutionExistsAndFullyLoadedAsync();
                     }
