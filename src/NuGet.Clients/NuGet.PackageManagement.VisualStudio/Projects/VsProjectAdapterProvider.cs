@@ -26,8 +26,11 @@ namespace NuGet.PackageManagement.VisualStudio
             : this(
                   threadingService,
                   new AsyncLazy<SVsSolution>(async () =>
-
-                  { await threadingService.JoinableTaskFactory.SwitchToMainThreadAsync(); return await serviceProvider.GetServiceAsync<SVsSolution>(); }, threadingService.JoinableTaskFactory))
+                    { 
+                      await threadingService.JoinableTaskFactory.SwitchToMainThreadAsync(); 
+                      return await serviceProvider.GetServiceAsync<SVsSolution>(); 
+                    }
+                    ,threadingService.JoinableTaskFactory))
         {
         }
 
@@ -51,12 +54,8 @@ namespace NuGet.PackageManagement.VisualStudio
         public async Task<IVsProjectAdapter> CreateAdapterForFullyLoadedProjectAsync(EnvDTE.Project dteProject)
         {
             Assumes.Present(dteProject);
-
-            // Get services while we might be on background thread
-            var vsSolution = await _vsSolution.GetValueAsync();
-
-            // switch to main thread and use services we know must be done on main thread.
             await _threadingService.JoinableTaskFactory.SwitchToMainThreadAsync();
+            var vsSolution = await _vsSolution.GetValueAsync();
 
             var vsHierarchyItem = await VsHierarchyItem.FromDteProjectAsync(dteProject);
             Func<IVsHierarchy, EnvDTE.Project> loadDteProject = _ => dteProject;

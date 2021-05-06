@@ -1003,9 +1003,8 @@ namespace NuGet.PackageManagement.VisualStudio
 
         public async Task<bool> IsSolutionFullyLoadedAsync()
         {
-            await NuGetUIThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
             await EnsureInitializeAsync();
+            await NuGetUIThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             var value = GetVSSolutionProperty((int)(__VSPROPID4.VSPROPID_IsSolutionFullyLoaded));
             return (bool)value;
         }
