@@ -63,7 +63,7 @@ namespace NuGet.PackageManagement.VisualStudio
             Assumes.Present(vsProject);
             Assumes.Present(context);
 
-            ThreadHelper.ThrowIfNotOnUIThread();
+            await NuGetUIThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
             // The project must be an IVsHierarchy.
             var hierarchy = vsProject.VsHierarchy;
