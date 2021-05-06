@@ -26,11 +26,11 @@ namespace NuGet.PackageManagement.VisualStudio
             : this(
                   threadingService,
                   new AsyncLazy<SVsSolution>(async () =>
-                    { 
-                      await threadingService.JoinableTaskFactory.SwitchToMainThreadAsync(); 
-                      return await serviceProvider.GetServiceAsync<SVsSolution>(); 
+                    {
+                        await threadingService.JoinableTaskFactory.SwitchToMainThreadAsync();
+                        return await serviceProvider.GetServiceAsync<SVsSolution>();
                     }
-                    ,threadingService.JoinableTaskFactory))
+                    , threadingService.JoinableTaskFactory))
         {
         }
 
