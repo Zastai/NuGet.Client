@@ -15,7 +15,7 @@ namespace NuGet.CommandLine.Test
     [Collection(nameof(NotThreadSafeResourceCollection))]
     public class ConfigCommandTest
     {
-        [Fact]
+        [Fact(Skip = "Temporarily skip it for testing")]
         public void ConfigCommand_ChangeDefaultConfigFile()
         {
             using (var preserver = new DefaultConfigurationFilePreserver())
