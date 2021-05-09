@@ -392,7 +392,14 @@ steps:
     sourcePath: 'artifacts\RunSettings'
     toLowerCase: false
     usePat: true
-    dropMetadataContainerName: RunSettings
+    dropMetadataContainerName: 'DropMetadata-RunSettings'
+  condition: "and(succeeded(), eq(variables['BuildRTM'], 'false'), eq(variables['IsOfficialBuild'], 'true'))"
+
+- task: PublishPipelineArtifact@1
+  displayName: "Publish localizationArtifacts artifact"
+  inputs:
+    targetPath: "$(Build.Repository.LocalPath)\\artifacts\\RunSettings\\"
+    artifactName: "RunSettings"
   condition: "and(succeeded(), eq(variables['BuildRTM'], 'false'), eq(variables['IsOfficialBuild'], 'true'))"
 
 - task: artifactDropTask@0
@@ -403,6 +410,7 @@ steps:
     sourcePath: '$(Build.ArtifactStagingDirectory)\OptProf\ProfilingInputs'
     toLowerCase: false
     usePat: true
+    dropMetadataContainerName: 'DropMetadata-ProfilingInputs'
   condition: "and(succeeded(), eq(variables['BuildRTM'], 'false'), eq(variables['IsOfficialBuild'], 'true'))"
 
 - task: PublishBuildArtifacts@1
