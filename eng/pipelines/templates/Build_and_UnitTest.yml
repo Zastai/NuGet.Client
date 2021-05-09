@@ -19,6 +19,12 @@ steps:
     arguments: "-BuildRTM $(BuildRTM)"
   displayName: "Configure VSTS CI Environment"
 
+- task: NuGetCommand@2
+  displayName: "Add the Apex NuGet package source"
+  inputs:
+    command: "custom"
+    arguments: "sources add -Name ApexFeed -Source $(ApexPackageFeedUrl) -UserName $(ApexPackageFeedUsername) -Password $(ApexPackageFeedPassword) -ConfigFile $(System.DefaultWorkingDirectory)\\NuGet.config"
+
 - task: PublishBuildArtifacts@1
   displayName: 'Publish buildinfo.json as an artifact'
   inputs:
@@ -105,7 +111,7 @@ steps:
     solution: "build\\build.proj"
     msbuildVersion: "16.0"
     configuration: "$(BuildConfiguration)"
-    msbuildArguments: "/t:RestoreVS /p:BuildNumber=$(BuildNumber) /p:BuildRTM=$(BuildRTM) /v:m"
+    msbuildArguments: "/t:RestoreVS /p:BuildNumber=$(BuildNumber) /p:BuildRTM=$(BuildRTM) /v:m /p:IncludeApex=true"
     maximumCpuCount: true
 
 - task: MSBuild@1
@@ -114,7 +120,7 @@ steps:
     solution: "build\\build.proj"
     msbuildVersion: "16.0"
     configuration: "$(BuildConfiguration)"
-    msbuildArguments: "/t:BuildNoVSIX /p:BuildRTM=$(BuildRTM) /p:BuildNumber=$(BuildNumber) /p:SkipILMergeOfNuGetExe=true /p:GitRepositoryRemoteName=github"
+    msbuildArguments: "/t:BuildNoVSIX /p:BuildRTM=$(BuildRTM) /p:BuildNumber=$(BuildNumber) /p:SkipILMergeOfNuGetExe=true /p:GitRepositoryRemoteName=github /p:IncludeApex=true"
     maximumCpuCount: true
 
 - task: MSBuild@1
@@ -352,7 +358,6 @@ steps:
     vsMajorVersion: "$(VsTargetMajorVersion)"
     manifests: '$(Build.Repository.LocalPath)\artifacts\$(VsixPublishDir)\Microsoft.VisualStudio.NuGet.Core.vsman'
     outputFolder: '$(Build.Repository.LocalPath)\artifacts\$(VsixPublishDir)'
-  continueOnError: true
   condition: "and(succeeded(), eq(variables['BuildRTM'], 'false'), eq(variables['IsOfficialBuild'], 'true'))"
 
 - task: PublishBuildArtifacts@1
@@ -363,26 +368,20 @@ steps:
     ArtifactType: Container
   condition: "and(succeeded(), eq(variables['BuildRTM'], 'false'), eq(variables['IsOfficialBuild'], 'true'))"
 
-- task: PowerShell@1
-  displayName: 'OptProfV2:  set the TestDrop environment variable'
-  inputs:
-    scriptType: 'inlineScript'
-    inlineScript: |
-      [string] $bootstrapperInfoFilePath = "$Env:BUILD_STAGINGDIRECTORY\MicroBuild\Output\BootstrapperInfo.json"
-      $json = Get-Content $bootstrapperInfoFilePath | ConvertFrom-Json
-      [string] $buildDropPath = $json.BuildDrop
-      Write-Host "Build drop:  $buildDropPath"
-      [string] $testDropPath = $buildDropPath.Replace('/Products/', '/Tests/').Substring('https://vsdrop.corp.microsoft.com/file/v1/'.Length)
-      Write-Host "Test drop:  $testDropPath"
-      Write-Host "##vso[task.setvariable variable=TestDrop]$testDropPath"
-  condition: "and(succeeded(), eq(variables['BuildRTM'], 'false'), eq(variables['IsOfficialBuild'], 'true'))"
-
 - task: MSBuild@1
   displayName: 'OptProfV2:  generate a .runsettings file'
   inputs:
     solution: 'build\NuGet.OptProfV2.runsettingsproj'
     msbuildVersion: '16.0'
-    msbuildArguments: '/p:OutputPath="$(Build.Repository.LocalPath)\artifacts\RunSettings" /p:TestDrop="$(TestDrop)" /p:ProfilingInputsDrop="ProfilingInputs/$(System.TeamProject)/$(Build.Repository.Name)/$(Build.SourceBranchName)/$(Build.BuildId)"'
+    msbuildArguments: '/p:OutputPath="$(Build.Repository.LocalPath)\artifacts\RunSettings" /p:TestDrop="RunSettings/$(System.TeamProject)/$(Build.Repository.Name)/$(Build.SourceBranchName)/$(Build.BuildId)" /p:ProfilingInputsDrop="ProfilingInputs/$(System.TeamProject)/$(Build.Repository.Name)/$(Build.SourceBranchName)/$(Build.BuildId)"'
+  condition: "and(succeeded(), eq(variables['BuildRTM'], 'false'), eq(variables['IsOfficialBuild'], 'true'))"
+
+- task: CopyFiles@2
+  displayName: 'OptProfV2:  copy test binaries'
+  inputs:
+    sourceFolder: 'test\NuGet.Tests.Apex\NuGet.OptProf\bin\16.0\release'
+    Contents: '**'
+    targetFolder: 'artifacts\RunSettings\NuGet.OptProf'
   condition: "and(succeeded(), eq(variables['BuildRTM'], 'false'), eq(variables['IsOfficialBuild'], 'true'))"
 
 - task: artifactDropTask@0

@@ -1,0 +1,110 @@
+trigger: none
+resources:
+  pipelines:
+  - pipeline: DartLab
+    project: Engineering
+    source: DartLab
+    branch: main
+  repositories:
+  - repository: DartLabTemplates
+    type: git
+    name: Engineering/DartLab
+
+parameters:
+- name: NumberOfTestMachines
+  displayName: Number of Test Machines
+  type: number
+  default: 1
+- name: DartLabEnvironment
+  displayName: DartLab Environment
+  type: string
+  default: Production
+  values:
+  - Production
+  - Staging
+
+variables: # pipeline-level
+- group: DartLab Secrets
+- name: RunSettingsURI
+  value: $(Pipeline.Workspace)\VisualStudioBuildUnderTest\BuildArtifacts\runsettings\DDRITs.runsettings #📝❗ Path to your runsettings file
+- name: VisualStudioBootstrapperURI
+  value: https://vsdrop.corp.microsoft.com/file/v1/$(DartLab_ProductsDropName);bootstrappers/Enterprise/vs_enterprise.exe
+- name: VSSigning
+  value: Test
+- template: Templates\Variables\DevTestLabs\Labs\DDRITS-PUBLIC.yml@DartLabTemplates
+
+stages:
+- stage: BuildApexTests
+  displayName: 'Build NuGet's Apex tests'
+  jobs:
+  - checkout: self
+    clean: true
+    submodules: true
+
+  - task: PowerShell@1
+    displayName: "Print Environment Variables"
+    inputs:
+      scriptType: "inlineScript"
+      inlineScript: |
+        Write-Host "##vso[build.updatebuildnumber]$env:FullVstsBuildNumber"
+        Get-ChildItem Env: | Sort-Object Name | Format-Table -Wrap -AutoSize
+
+  - task: DotNetCoreCLI@2
+    displayName: Restore bootstrap.proj
+    command: restore
+    projects: build\bootstrap.proj
+
+  - task: NuGetCommand@2
+    displayName: "Add Apex Feed Source"
+    inputs:
+      command: "custom"
+      arguments: "sources add -Name ApexFeed -Source $(ApexPackageFeedUrl) -UserName $(ApexPackageFeedUsername) -Password $(ApexPackageFeedPassword) -ConfigFile $(System.DefaultWorkingDirectory)\\NuGet.config"
+
+  - task: MSBuild@1
+    displayName: Restore
+    solution: build\NuGet-WithApex.sln
+    msbuildArguments: "/t:Restore"
+
+  - task: MSBuild@1
+    displayName: Build
+    solution: build\NuGet-WithApex.sln
+    maximumCpuCount: true
+    configuration: Release
+
+  - task: NuGetCommand@2
+    displayName: 'OptProfV2:  add the NuGet package source'
+    inputs:
+      command: 'custom'
+      arguments: 'sources add -Name VS -Source $(VsPackageFeedUrl) -UserName $(VsPackageFeedUsername) -Password $(VsPackageFeedPassword) -ConfigFile $(System.DefaultWorkingDirectory)\NuGet.config'
+
+  - task: NuGetCommand@2
+    displayName: 'OptProfV2:  install the NuGet package for building .runsettingsproj file'
+    inputs:
+      command: 'custom'
+      arguments: 'install Microsoft.DevDiv.Validation.TestPlatform.Settings.Tasks -Version 1.0.308 -Source $(VsPackageFeedUrl) -ConfigFile $(System.DefaultWorkingDirectory)\NuGet.config -OutputDirectory $(System.DefaultWorkingDirectory)\packages'
+
+  - task: ms-vseng.MicroBuildTasks.0e9d0d4d-71ec-4e4e-ae40-db9896f1ae74.MicroBuildBuildVSBootstrapper@2
+    displayName: 'OptProfV2:  build a Visual Studio bootstrapper'
+    inputs:
+      channelName: "d16.11"
+      vsMajorVersion: "16"
+      manifests: '$(Build.Repository.LocalPath)\artifacts\$(VsixPublishDir)\Microsoft.VisualStudio.NuGet.Core.vsman'
+      outputFolder: '$(Build.Repository.LocalPath)\artifacts\$(VsixPublishDir)'
+
+
+- stage: RunOptProf
+  displayName: 'Run NuGet.OptProf tests'
+
+  jobs:
+  - template: Templates\Steps\DevTestLabs\Configurations\DefaultTemplates\VisualStudio.Default.yml@DartLabTemplates
+    parameters:
+      dartLabEnvironment: ${{ parameters.DartLabEnvironment }}
+      dtlLab: '${{variables.DartLab_DTLLabs}}'
+      numberOfTestMachines: ${{parameters.NumberOfTestMachines}}
+      runSettingsUri: '${{ variables.RunSettingsURI }}'
+      visualStudioBootstrapperURI: '${{ variables.VisualStudioBootstrapperURI}}'
+      visualStudioSigning: '${{variables.VSSigning}}'
+      preInitializeTestMachineConfigurationStepList:
+        - checkout: none
+      preInitializeTestExecutionStepList:
+        - checkout: none
