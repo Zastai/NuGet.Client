@@ -3,5 +3,6 @@
   "methodDisplay": "classAndMethod",
   "parallelizeAssembly": true,
   "parallelizeTestCollections": true,
+  "maxParallelThreads": 3,
   "longRunningTestSeconds": 120
 }
