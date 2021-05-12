@@ -28,8 +28,18 @@ namespace NuGet.PackageManagement
         /// <summary>
         /// Restore a solution and cache the dg spec to context.
         /// </summary>
+        /// <param name="dgSpec">Dependency graph to restore</param>
+        /// <param name="context">Restore graph cache context modified by <c>cacheContextModifier</c></param>
+        /// <param name="providerCache">A cache of NuGet sources</param>
+        /// <param name="cacheContextModifier">A function to set cache options</param>
+        /// <param name="sources">A collection of package sources</param>
+        /// <param name="parentId">Correlation ID to track telemetry event origin</param>
+        /// <param name="forceRestore">Forces a full restore operation</param>
+        /// <param name="isRestoreOriginalAction">Set to <c>true</c> if the call represents the first restore operation</param>
+        /// <param name="log">Logger to emit messages</param>
+        /// <param name="token">Cancellation token</param>
+        /// <returns>A collection of summary objects, representing each restore operation performed</returns>
         public static Task<IReadOnlyList<RestoreSummary>> RestoreAsync(
-            ISolutionManager solutionManager,
             DependencyGraphSpec dgSpec,
             DependencyGraphCacheContext context,
             RestoreCommandProvidersCache providerCache,
@@ -41,7 +51,7 @@ namespace NuGet.PackageManagement
             ILogger log,
             CancellationToken token)
         {
-            return RestoreAsync(solutionManager,
+            return RestoreAsync(
                 dgSpec,
                 context,
                 providerCache,
@@ -58,21 +68,19 @@ namespace NuGet.PackageManagement
         /// <summary>
         /// Restore a solution and cache the dg spec to context.
         /// </summary>
-        /// <param name="solutionManager">No use</param>
-        /// <param name="dgSpec"></param>
-        /// <param name="context"></param>
-        /// <param name="providerCache"></param>
-        /// <param name="cacheContextModifier"></param>
-        /// <param name="sources"></param>
-        /// <param name="parentId"></param>
-        /// <param name="forceRestore"></param>
-        /// <param name="isRestoreOriginalAction"></param>
-        /// <param name="additionalMessages"></param>
-        /// <param name="log"></param>
-        /// <param name="token"></param>
-        /// <returns></returns>
+        /// <param name="dgSpec">Dependency graph to restore</param>
+        /// <param name="context">Restore graph cache context modified by <c>cacheContextModifier</c></param>
+        /// <param name="providerCache">A cache of NuGet sources</param>
+        /// <param name="cacheContextModifier">A function to set cache options</param>
+        /// <param name="sources">A collection of package sources</param>
+        /// <param name="parentId">Correlation ID to track telemetry event origin</param>
+        /// <param name="forceRestore">Forces a full restore operation</param>
+        /// <param name="isRestoreOriginalAction">Set to <c>true</c> if the call represents the first restore operation</param>
+        /// <param name="additionalMessages">Messages found in assets file</param>
+        /// <param name="log">Logger to emit messages</param>
+        /// <param name="token">Cancellation token</param>
+        /// <returns>A collection of summary objects, representing each restore operation performed</returns>
         public static async Task<IReadOnlyList<RestoreSummary>> RestoreAsync(
-            ISolutionManager solutionManager,
             DependencyGraphSpec dgSpec,
             DependencyGraphCacheContext context,
             RestoreCommandProvidersCache providerCache,
@@ -112,7 +120,7 @@ namespace NuGet.PackageManagement
 
                     RestoreSummary.Log(log, restoreSummaries);
 
-                    await PersistDGSpec(dgSpec);
+                    await PersistDGSpecAsync(dgSpec);
 
                     return restoreSummaries;
                 }
@@ -121,7 +129,7 @@ namespace NuGet.PackageManagement
             return new List<RestoreSummary>();
         }
 
-        private static async Task PersistDGSpec(DependencyGraphSpec dgSpec)
+        private static async Task PersistDGSpecAsync(DependencyGraphSpec dgSpec)
         {
             try
             {

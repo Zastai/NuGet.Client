@@ -72,12 +72,11 @@ namespace NuGet.VisualStudio
         }
 
         /// <summary>
-        /// Adds a NuGet package source from a Visual Studio Extension
+        /// Adds a NuGet package source from an installed Visual Studio Extension
         /// </summary>
-        /// <param name="provider">Not Used</param>
-        /// <param name="extensionId"></param>
+        /// <param name="extensionId">GUID-like string representing VSPackage extension ID</param>
         /// <remarks>https://docs.microsoft.com/en-us/nuget/visual-studio-extensibility/visual-studio-templates</remarks>
-        public void AddFromExtension(ISourceRepositoryProvider provider, string extensionId)
+        public void AddFromExtension(string extensionId)
         {
             var path = GetExtensionRepositoryPath(extensionId);
 

@@ -76,7 +76,7 @@ namespace NuGet.ProjectManagement
 
             var fullPath = GetFullPath(root, path);
 
-            using (var outputStream = CreateFile(fullPath, nuGetProjectContext))
+            using (var outputStream = CreateFile(fullPath))
             {
                 writeToStream(outputStream);
             }
@@ -104,31 +104,14 @@ namespace NuGet.ProjectManagement
         }
 
         /// <summary>
-        /// Creates a file, and adds it to source control.
+        /// Creates a file, but doesn't add it to source control
         /// </summary>
         /// <param name="root">Root folder.</param>
         /// <param name="path">Relative path in the root folder.</param>
-        /// <param name="nuGetProjectContext">the project context.</param>
         /// <returns>A writeable filestream.</returns>
-        public static Stream CreateFile(string root, string path, INuGetProjectContext nuGetProjectContext)
+        public static Stream CreateFile(string root, string path)
         {
-            return CreateFile(GetFullPath(root, path), nuGetProjectContext);
-        }
-
-        /// <summary>
-        /// Creates a file, and adds it to source control.
-        /// </summary>
-        /// <param name="fullPath">Full path to the suggest file.</param>
-        /// <param name="nuGetProjectContext">Not used</param>
-        /// <returns>A writeable filestream.</returns>
-        public static Stream CreateFile(string fullPath, INuGetProjectContext nuGetProjectContext)
-        {
-            if (string.IsNullOrEmpty(Path.GetFileName(fullPath)))
-            {
-                throw new ArgumentException(Strings.Argument_Cannot_Be_Null_Or_Empty, nameof(fullPath));
-            }
-
-            return CreateFile(fullPath);
+            return CreateFile(GetFullPath(root, path));
         }
 
         /// <summary>
