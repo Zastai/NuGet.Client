@@ -1,22 +1,8 @@
+# NuGet test pipeline
+
 trigger: none
-resources:
-  pipelines:
-  - pipeline: NuGet.Client-Official
-    source: NuGet.Client-Official
-  - pipeline: DartLab
-    project: Engineering
-    source: DartLab
-    branch: main
-  repositories:
-  - repository: DartLabTemplates
-    type: git
-    name: Engineering/DartLab
 
 parameters:
-- name: NumberOfTestMachines
-  displayName: Number of Test Machines
-  type: number
-  default: 1
 - name: DartLabEnvironment
   displayName: DartLab Environment
   type: string
@@ -25,30 +11,29 @@ parameters:
   - Production
   - Staging
 
-variables: # pipeline-level
-- group: DartLab Secrets
-- name: RunSettingsURI
-  value: $(Pipeline.Workspace)\NuGet.Client-Official\BuildArtifacts\RunSettings\NuGet.OptProfV2.runsettings
-- name: VisualStudioBootstrapperURI
-  value: https://vsdrop.corp.microsoft.com/file/v1/$(DartLab_ProductsDropName);bootstrappers/Enterprise/vs_enterprise.exe
-- name: VSSigning
-  value: Test
-- template: Templates\Variables\DevTestLabs\Labs\DDRITS-PUBLIC.yml@DartLabTemplates
+resources:
+  pipelines:
+  - pipeline: NuGet
+    source: NuGet.Client-Official
+  - pipeline: DartLab
+    source: DartLab
+    branch: dev/bradwhit/ConvertRPSPipelines
+  repositories:
+  - repository: DartLabTemplates
+    type: git
+    name: DartLab.Templates
 
 stages:
-- stage: NuGetOptProfTests
-  displayName: 'Run NuGet.OptProf tests'
-
-  jobs:
-  - template: Templates\Steps\DevTestLabs\Configurations\DefaultTemplates\VisualStudio.Default.yml@DartLabTemplates
-    parameters:
-      dartLabEnvironment: ${{ parameters.DartLabEnvironment }}
-      dtlLab: '${{variables.DartLab_DTLLabs}}'
-      numberOfTestMachines: ${{parameters.NumberOfTestMachines}}
-      runSettingsUri: '${{ variables.RunSettingsURI }}'
-      visualStudioBootstrapperURI: '${{ variables.VisualStudioBootstrapperURI}}'
-      visualStudioSigning: '${{variables.VSSigning}}'
-      preInitializeTestMachineConfigurationStepList:
-        - checkout: none
-      preInitializeTestExecutionStepList:
-        - checkout: none
+- template: stages\visual-studio\default.yml@DartLabTemplates
+  parameters:
+    displayName: NuGet Test Environment
+    visualStudioBootstrapperURI: https://vsdrop.corp.microsoft.com/file/v1/Products/DevDiv/NuGet-NuGet.Client-Trusted/dev-zivkan-dartlab/6.0.0.33;bootstrapper/4740532/f67dda70-85cc-4474-9da7-3cbb040e3581/vs_enterprise.exe
+    testLabPoolName: VS-Platform
+    dartLabEnvironment: ${{parameters.DartLabEnvironment}}
+    deployAndRunTestsStepList:
+    - template: steps\test\deploy-and-run-tests.yml@DartLabTemplates
+      parameters:
+        ##### Required #####
+        runSettingsURI: $(Pipeline.Workspace)\NuGet\RunSettings\NuGet.OptProfV2.runsettings
+        ##### Optional #####
+        dartLabPath: $(DartLab.Path)
