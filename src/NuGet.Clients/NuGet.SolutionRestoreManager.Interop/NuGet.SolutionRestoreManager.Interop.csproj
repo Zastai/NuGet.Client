@@ -1,4 +1,4 @@
-﻿<Project>
+<Project>
   <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), 'README.md'))\build\common.props" />
   <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
 
@@ -12,6 +12,7 @@
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <Description>APIs for invoking NuGet Restore Manager in Visual Studio.</Description>
     <AssemblyDescription>$(Description)</AssemblyDescription>
+    <NoWarn>$(NoWarn);RS0016</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

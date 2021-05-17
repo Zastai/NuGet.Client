@@ -10,7 +10,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft;
-using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using NuGet.Commands;
@@ -26,7 +25,7 @@ using IAsyncServiceProvider = Microsoft.VisualStudio.Shell.IAsyncServiceProvider
 namespace NuGet.SolutionRestoreManager
 {
     /// <summary>
-    /// Implementation of the <see cref="IVsSolutionRestoreService"/> and <see cref="IVsSolutionRestoreService2"/>.
+    /// Implementation of the <see cref="IVsSolutionRestoreService"/>, <see cref="IVsSolutionRestoreService2"/>, <see cref="IVsSolutionRestoreService3"/> and <see cref="IVsSolutionRestoreService4"/>.
     /// Provides extension API for project restore nomination triggered by 3rd party component.
     /// Configured as a single-instance MEF part.
     /// </summary>
@@ -34,7 +33,7 @@ namespace NuGet.SolutionRestoreManager
     [Export(typeof(IVsSolutionRestoreService))]
     [Export(typeof(IVsSolutionRestoreService2))]
     [Export(typeof(IVsSolutionRestoreService3))]
-    public sealed class VsSolutionRestoreService : IVsSolutionRestoreService, IVsSolutionRestoreService2, IVsSolutionRestoreService3
+    public sealed class VsSolutionRestoreService : IVsSolutionRestoreService, IVsSolutionRestoreService2, IVsSolutionRestoreService3, IVsSolutionRestoreService4
     {
         private readonly IProjectSystemCache _projectSystemCache;
         private readonly ISolutionRestoreWorker _restoreWorker;
@@ -78,6 +77,7 @@ namespace NuGet.SolutionRestoreManager
 
             if (!_projectSystemCache.TryGetProjectNames(projectUniqueName, out ProjectNames projectNames))
             {
+                // This is probably never hit cause it would deadlock.
                 IVsSolution2 vsSolution2 = await _vsSolution2.GetValueAsync(token);
                 projectNames = await ProjectNames.FromIVsSolution2(projectUniqueName, vsSolution2, token);
             }
@@ -320,6 +320,52 @@ namespace NuGet.SolutionRestoreManager
             dgSpec.AddProject(packageSpec);
 
             return dgSpec;
+        }
+
+        public async System.Threading.Tasks.Task RegisterRestoreInfoSourceAsync(IVsProjectRestoreInfoSource restoreInfoSource, CancellationToken token)
+        {
+            if (restoreInfoSource == null)
+            {
+                throw new ArgumentException(Resources.Argument_Cannot_Be_Null_Or_Empty, nameof(restoreInfoSource));
+            }
+
+            if (string.IsNullOrEmpty(restoreInfoSource.Name))
+            {
+                throw new ArgumentNullException(Resources.Argument_Cannot_Be_Null_Or_Empty, $"{nameof(restoreInfoSource)}.Name");
+            }
+
+            string projectUniqueName = restoreInfoSource.Name;
+            ProjectNames projectNames = await GetProjectNamesAsync(projectUniqueName, token);
+
+            _projectSystemCache.AddProjectRestoreInfoSource(projectNames, restoreInfoSource);
+        }
+
+        private async Task<ProjectNames> GetProjectNamesAsync(string projectUniqueName, CancellationToken token)
+        {
+            if (!_projectSystemCache.TryGetProjectNames(projectUniqueName, out ProjectNames projectNames))
+            {
+                await NuGetUIThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                IVsSolution2 vsSolution2 = await _vsSolution2.GetValueAsync(token);
+                projectNames = await ProjectNames.FromIVsSolution2(projectUniqueName, vsSolution2, token);
+            }
+
+            return projectNames;
+        }
+
+        public sealed class Disposable : IDisposable
+        {
+            public Disposable(string projectUniqueName)
+            {
+                _projectUniqueName = projectUniqueName ?? throw new ArgumentNullException(nameof(projectUniqueName));
+            }
+
+            internal string _projectUniqueName;
+            internal bool _disposed = false;
+            public void Dispose()
+            {
+                // When disposed, delete the registration object from the cache.
+                _disposed = true;
+            }
         }
     }
 }

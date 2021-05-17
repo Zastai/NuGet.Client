@@ -299,6 +299,10 @@ namespace NuGet.PackageManagement.VisualStudio
             return true;
         }
 
+        public IReadOnlyList<object> GetAllProjectRestoreInfoSources()
+        {
+            return _projectSystemCache.GetProjectRestoreInfoSources();
+        }
 
         private static bool IsRestoredOnSolutionLoad(NuGetProject nuGetProject)
         {

@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.ComponentModel.Composition;
 using System.Linq;
 using System.Threading;
@@ -33,7 +34,7 @@ namespace NuGet.SolutionRestoreManager
         private const int RequestQueueLimit = 150;
         private const int PromoteAttemptsLimit = 150;
         private const int DelaySolutionLoadRetry = 100;
-        private const int MaxIdleWaitTimeMs = 10000;
+        private const int MaxIdleWaitTimeMs = 30000;
 
         private readonly object _lockPendingRequestsObj = new object();
 
@@ -487,17 +488,43 @@ namespace NuGet.SolutionRestoreManager
                             // check if there are pending nominations
                             var isAllProjectsNominated = await _solutionManager.Value.IsAllProjectsNominatedAsync();
 
+                            // If are about to try restore, we should run through all the projects to ensure there isn't a pending nomination.
+                            var restoreProjectInfoSoruces = (IReadOnlyList<IVsProjectRestoreInfoSource>) _solutionManager.Value.GetAllProjectRestoreInfoSources();
+
                             // Try to get a request without a timeout. We don't want to *block* the threadpool thread.
                             if (!_pendingRequests.Value.TryTake(out next, millisecondsTimeout: 0, token))
                             {
                                 if (isAllProjectsNominated)
                                 {
-                                    // if we've got all the nominations then continue with the auto restore
-                                    break;
+                                    var pendingNominations = new List<IVsProjectRestoreInfoSource>();
+
+                                    for(int i = 0; i < restoreProjectInfoSoruces.Count; i++)
+                                    {
+                                        if (restoreProjectInfoSoruces[i].HasPendingNomination())
+                                        {
+                                            pendingNominations.Add(pendingNominations[i]);
+                                        }
+                                    }
+
+                                    if (pendingNominations.Count == 0)
+                                    {
+                                        break;
+                                    }
+                                    else
+                                    {
+                                        // TODO NK - Is there a cancellation token that should be passed? yes?
+                                        // TODO NK - Calculate the wait time.
+                                        var tasks = pendingNominations.Select(e => e.WhenNominated(token));
+                                        var result = Task.WhenAll(tasks);
+                                        // Loop again. For all we know, new projects might've been added.
+                                    }
                                 }
                                 else
                                 {
-                                    // Break if we've waited for more than 10s without an actual nomination.
+                                    // TODO NK - Should we have a timeout ever?
+                                    // Break if we've waited for more than 30s without an actual nomination.
+                                    // We should check the info sources here to see if there are any that are pending.
+                                    // In theory we use the old logic if there are no nominations from unregistered projects.
                                     if (lastNominationReceived.AddMilliseconds(MaxIdleWaitTimeMs) < DateTime.UtcNow)
                                     {
                                         break;
