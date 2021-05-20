@@ -22,18 +22,14 @@ resources:
   - repository: DartLabTemplates
     type: git
     name: DartLab.Templates
+    ref: refs/heads/dev/bradwhit/ConvertRPSPipelines
 
 stages:
 - template: stages\visual-studio\default.yml@DartLabTemplates
   parameters:
     displayName: NuGet Test Environment
+    runSettingsURI: $(Pipeline.Workspace)\NuGet\RunSettings\NuGet.OptProfV2.runsettings
     visualStudioBootstrapperURI: https://vsdrop.corp.microsoft.com/file/v1/Products/DevDiv/NuGet-NuGet.Client-Trusted/dev-zivkan-dartlab/6.0.0.33;bootstrapper/4740532/f67dda70-85cc-4474-9da7-3cbb040e3581/vs_enterprise.exe
     testLabPoolName: VS-Platform
     dartLabEnvironment: ${{parameters.DartLabEnvironment}}
-    deployAndRunTestsStepList:
-    - template: steps\test\deploy-and-run-tests.yml@DartLabTemplates
-      parameters:
-        ##### Required #####
-        runSettingsURI: $(Pipeline.Workspace)\NuGet\RunSettings\NuGet.OptProfV2.runsettings
-        ##### Optional #####
-        dartLabPath: $(DartLab.Path)
+    visualStudioSigning: Test
