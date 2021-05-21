@@ -302,6 +302,11 @@ steps:
     ignoreDirectories: '$(Build.Repository.LocalPath)\\test,$(Build.Repository.LocalPath)\\packages\\nuget.client.endtoend.testdata'
   condition: "and(succeeded(),eq(variables['BuildRTM'], 'true'))"
 
+- task: notice@0
+  displayName: 'NOTICE File Generator'
+  inputs:
+    outputformat: 'text'
+
 - task: PublishPipelineArtifact@1
   displayName: "Publish nupkgs"
   inputs:
