@@ -3,7 +3,7 @@
   <!-- See https://github.com/NuGet/Home/issues/2365 for more info.
        The decision whether an assembly needs to be linked or referenced belongs to the package author.
        -->
-  <Target Name="LinkEmbeddableAssemblies" AfterTargets="ResolveReferences" BeforeTargets="FindReferenceAssembliesForReferences">
+  <Target Name="LinkNuGetSolutionRestoreManagerEmbeddableAssemblies" AfterTargets="ResolveReferences" BeforeTargets="FindReferenceAssembliesForReferences">
     <ItemGroup>
       <ReferencePath Condition=" '%(FileName)' == 'NuGet.SolutionRestoreManager.Interop' ">
         <EmbedInteropTypes>true</EmbedInteropTypes>
