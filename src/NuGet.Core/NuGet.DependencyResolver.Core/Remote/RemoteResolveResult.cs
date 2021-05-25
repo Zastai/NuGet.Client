@@ -9,6 +9,6 @@ namespace NuGet.DependencyResolver
     public class RemoteResolveResult
     {
         public RemoteMatch Match { get; set; }
-        public IEnumerable<LibraryDependency> Dependencies { get; set; }
+        public List<LibraryDependency> Dependencies { get; set; }
     }
 }
