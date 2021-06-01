@@ -29,7 +29,7 @@ stages:
   parameters:
     displayName: NuGet Test Environment
     runSettingsURI: $(Pipeline.Workspace)\NuGet\RunSettings\NuGet.OptProfV2.runsettings
-    visualStudioBootstrapperURI: https://vsdrop.corp.microsoft.com/file/v1/Products/DevDiv/NuGet-NuGet.Client-Trusted/dev-zivkan-dartlab/6.0.0.33;bootstrapper/4740532/f67dda70-85cc-4474-9da7-3cbb040e3581/vs_enterprise.exe
+    visualStudioBootstrapperURI: $(Pipeline.Workspace)\NuGet\VS15\4786489\646a52be-73ec-4f9e-8546-20f961a7cba0\vs_enterprise.exe
     testLabPoolName: VS-Platform
     dartLabEnvironment: ${{parameters.DartLabEnvironment}}
     visualStudioSigning: Test
@@ -37,8 +37,14 @@ stages:
     - download: NuGet
       artifact: RunSettings
       displayName: Download NuGet RunSettings
+    - download: NuGet
+      artifact: VS15
+      displayName: Download NuGet RunSettings
     preDeployAndRunTestsStepList:
     - download: NuGet
       artifact: RunSettings
+      displayName: Download NuGet RunSettings
+    - download: NuGet
+      artifact: VS15
       displayName: Download NuGet RunSettings
     visualStudioInstallationParameters: '--add Microsoft.VisualStudio.Component.CoreEditor --add Microsoft.VisualStudio.Workload.CoreEditor --add Microsoft.NetCore.Component.Runtime.3.1 --add Microsoft.NetCore.Component.SDK --add Microsoft.VisualStudio.Component.NuGet --add Microsoft.VisualStudio.Component.Roslyn.Compiler --add Microsoft.VisualStudio.Component.Roslyn.LanguageServices --add Microsoft.NetCore.Component.DevelopmentTools --add Microsoft.Net.Component.4.7.2.TargetingPack --add Microsoft.Net.ComponentGroup.DevelopmentPrerequisites --add Microsoft.Component.MSBuild --add Microsoft.VisualStudio.Component.TextTemplating --add Microsoft.VisualStudio.Component.ManagedDesktop.Core --add Microsoft.VisualStudio.Component.IntelliCode --add Microsoft.VisualStudio.Component.ManagedDesktop.Prerequisites --add Microsoft.VisualStudio.Workload.ManagedDesktop --add Microsoft.VisualStudio.Component.VSSDK --add Microsoft.VisualStudio.ComponentGroup.VisualStudioExtension.Prerequisites --add Microsoft.VisualStudio.Workload.VisualStudioExtension --add Microsoft.VisualStudio.Workload.NetCoreTool --installPath "C:\Test\VisualStudio" --quiet --norestart --wait'
