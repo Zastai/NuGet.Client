@@ -17,15 +17,15 @@ resources:
     source: NuGet.Client-Official
   - pipeline: DartLab
     source: DartLab
-    branch: dev/bradwhit/ConvertRPSPipelines
+    branch: main
   repositories:
   - repository: DartLabTemplates
     type: git
     name: DartLab.Templates
-    ref: refs/heads/dev/bradwhit/ConvertRPSPipelines
+    ref: refs/heads/main
 
 stages:
-- template: stages\visual-studio\default.yml@DartLabTemplates
+- template: stages\visual-studio\single-runsettings.yml@DartLabTemplates
   parameters:
     displayName: NuGet Test Environment
     runSettingsURI: $(Pipeline.Workspace)\NuGet\RunSettings\NuGet.OptProfV2.runsettings
