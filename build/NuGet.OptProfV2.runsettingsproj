@@ -37,6 +37,7 @@
 
   <ItemGroup Label="Test Containers">
     <TestContainer Include="NuGet.OptProf.dll" />
+    <InstallationConfiguration Include="..\.vsconfig" />
   </ItemGroup>
 
   <ItemGroup Label="Data Collectors">
