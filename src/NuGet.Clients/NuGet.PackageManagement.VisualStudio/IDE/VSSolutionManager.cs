@@ -62,9 +62,6 @@ namespace NuGet.PackageManagement.VisualStudio
         private bool _initialized;
         private bool _cacheInitialized;
 
-        //add solutionOpenedRasied to make sure ProjectRename and ProjectAdded event happen after solutionOpened event
-        private bool _solutionOpenedRaised;
-
         private string _solutionDirectoryBeforeSaveSolution;
 
         public INuGetProjectContext NuGetProjectContext { get; set; }
@@ -505,8 +502,6 @@ namespace NuGet.PackageManagement.VisualStudio
             await EnsureNuGetAndVsProjectAdapterCacheAsync();
 
             SolutionOpened?.Invoke(this, EventArgs.Empty);
-
-            _solutionOpenedRaised = true;
         }
 
         private void OnAfterClosing()
@@ -516,8 +511,6 @@ namespace NuGet.PackageManagement.VisualStudio
             _cacheInitialized = false;
 
             SolutionClosed?.Invoke(this, EventArgs.Empty);
-
-            _solutionOpenedRaised = false;
         }
 
         private void OnBeforeClosing()
@@ -564,7 +557,7 @@ namespace NuGet.PackageManagement.VisualStudio
         {
             NuGetUIThreadHelper.JoinableTaskFactory.Run(async () =>
             {
-                if (!string.IsNullOrEmpty(oldName) && await IsSolutionOpenAsync() && _solutionOpenedRaised)
+                if (!string.IsNullOrEmpty(oldName) && await IsSolutionOpenAsync())
                 {
                     await EnsureNuGetAndVsProjectAdapterCacheAsync();
 
@@ -620,8 +613,7 @@ namespace NuGet.PackageManagement.VisualStudio
             {
                 if (await IsSolutionOpenAsync()
                     && await EnvDTEProjectUtility.IsSupportedAsync(envDTEProject)
-                    && !EnvDTEProjectUtility.IsParentProjectExplicitlyUnsupported(envDTEProject)
-                    && _solutionOpenedRaised)
+                    && !EnvDTEProjectUtility.IsParentProjectExplicitlyUnsupported(envDTEProject))
                 {
                     await EnsureNuGetAndVsProjectAdapterCacheAsync();
                     var vsProjectAdapter = await _vsProjectAdapterProvider.CreateAdapterForFullyLoadedProjectAsync(envDTEProject);
