@@ -2,11 +2,44 @@ $VSInstallerProcessName = "VSIXInstaller"
 
 . "$PSScriptRoot\Utils.ps1"
 
+function Get-LatestVSInstance
+{
+    $VsVersion = & dotnet msbuild "$PSScriptRoot\..\..\build\config.props" -t:GetVSTargetMajorVersion -NoLogo
+    Write-Host "Looking for VS version $vsVersion"
+    $VsVersionRange = "["+$VsVersion+".0,"+(1+$VsVersion)+".0)"
+
+    $vswhere = "${Env:\ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+
+    $VSInstanceData = & $vswhere -latest -prerelease -version "$VsVersionRange" -nologo -format json | ConvertFrom-Json
+
+    return $VSInstanceData
+}
+
+function Get-SpecificVSInstance
+{
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$instanceId
+    )
+
+    $vswhere = "${Env:\ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+
+    $allInstances = & $vswhere -prerelease -nologo -format json | ConvertFrom-Json
+
+    $specificInstance = $allInstances | Where-Object { $_.instanceId -eq $instanceId }
+
+    if ($null -eq $specificInstance)
+    {
+        throw "Could not find VS instance $instanceId"
+    }
+
+    return $specificInstance
+}
+
 function GetVSFolderPath {
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet("16.0")]
-        [string]$VSVersion
+        [Object]$VsInstance
     )
 
     $ProgramFilesPath = ${env:ProgramFiles}
@@ -28,8 +61,7 @@ function LaunchVSAndWaitForDTE {
     param (
         [string]$ActivityLogFullPath,
         [Parameter(Mandatory = $true)]
-        [ValidateSet("16.0")]
-        [string]$VSVersion,
+        [Object]$VSInstance,
         [Parameter(Mandatory = $true)]
         $DTEReadyPollFrequencyInSecs,
         [Parameter(Mandatory = $true)]
@@ -39,11 +71,14 @@ function LaunchVSAndWaitForDTE {
     KillRunningInstancesOfVS
 
     if ($ActivityLogFullPath) {
-        LaunchVS -VSVersion $VSVersion -ActivityLogFullPath $ActivityLogFullPath
+        LaunchVS -VSInstance $VSInstance -ActivityLogFullPath $ActivityLogFullPath
     }
     else {
-        LaunchVS -VSVersion $VSVersion
+        LaunchVS -VSInstance $VSInstance
     }
+
+    $VSVersionString = $VsInstance.installationVersion
+    $VSVersion = $VSVersionString.Substring(0, $VSVersionString.IndexOf("."))
 
     $dte2 = $null
     $count = 0
@@ -65,24 +100,16 @@ function LaunchVSAndWaitForDTE {
     }
 }
 
-function GetVSIDEFolderPath {
+function KillRunningInstancesOfVS {
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet("16.0")]
-        [string]$VSVersion
+        [Object]$VSInstance
     )
 
-    $VSFolderPath = GetVSFolderPath $VSVersion
-    $VSIDEFolderPath = Join-Path $VSFolderPath "Common7\IDE"
-
-    return $VSIDEFolderPath
-}
-
-function KillRunningInstancesOfVS {
     Get-Process | ForEach-Object {
         if (-not [string]::IsNullOrEmpty($_.Path)) {
             $processPath = $_.Path | Out-String
-            if ($processPath.StartsWith("C:\Program Files (x86)\Microsoft Visual Studio", [System.StringComparison]::OrdinalIgnoreCase)) {
+            if ($processPath.StartsWith($VSInstance.installationPath, [System.StringComparison]::OrdinalIgnoreCase)) {
                 Write-Host $processPath
                 Stop-Process $_ -ErrorAction SilentlyContinue -Force
                 if ($_.HasExited) {
@@ -96,13 +123,11 @@ function KillRunningInstancesOfVS {
 function LaunchVS {
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet("16.0")]
-        [string]$VSVersion,
+        [Object]$VSInstance,
         [string]$ActivityLogFullPath
     )
 
-    $VSIDEFolderPath = GetVSIDEFolderPath $VSVersion
-    $VSPath = Join-Path $VSIDEFolderPath "devenv.exe"
+    $VSPath = $VSInstance.productPath
     Write-Host 'Starting ' $VSPath
     if ($ActivityLogFullPath) {
         start-process $VSPath -ArgumentList "/log $ActivityLogFullPath"
@@ -115,7 +140,6 @@ function LaunchVS {
 function GetDTE2 {
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet("16.0")]
         [string]$VSVersion
     )
 
@@ -165,7 +189,7 @@ function ExecuteCommand {
             }
         }
         catch {
-            Write-Host "$command threw an exception: $PSItem" 
+            Write-Host "$command threw an exception: $PSItem"
             Write-Host "Will wait for $waitTime seconds and retry"
             $success = $false
             start-sleep $waitTime
@@ -177,58 +201,56 @@ function ExecuteCommand {
 function GetVSIXInstallerPath {
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet("16.0")]
-        [string]$VSVersion
+        [Object]$VSInstance
     )
 
-    $VSIDEFolderPath = GetVSIDEFolderPath $VSVersion
-    $VSIXInstallerPath = Join-Path $VSIDEFolderPath "$VSInstallerProcessName.exe"
+    $VSIXInstallerPath = Get-ChildItem -Recurse $VSInstance.installationPath -filter "$VSInstallerProcessName.exe"
 
-    # TODO: This needs to be removed when https://developercommunity.visualstudio.com/content/problem/441998/vsixinstallerexe-not-working-in-vs2019-preview-20.html is fixed (it should be in Preview 4)
-    return "C:\Program Files (x86)\Microsoft Visual Studio\Installer\resources\app\ServiceHub\Services\Microsoft.VisualStudio.Setup.Service\VSIXInstaller.exe"
+    return $VSIXInstallerPath.FullName
 }
 
 function GetMEFCachePath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [Object]$VSInstance
+    )
+
     $cachePath = $env:localappdata
-    @( "Microsoft", "VisualStudio", "16.*", "ComponentModelCache" ) | % { $cachePath = Join-Path $cachePath $_ }
+    $exeVersion = $VSInstance.installationVersion
+    $vsVersion = $exeVersion.Substring(0, $exeVersion.IndexOf('.'))
+    @( "Microsoft", "VisualStudio", "$vsVersion.0_$($VSInstance.instanceId)", "ComponentModelCache" ) | % { $cachePath = Join-Path $cachePath $_ }
 
     return $cachePath
 }
 
 function Update-Configuration(
-        [ValidateSet('16.0')]
-        [string] $vsVersion = '16.0') {
+        [Parameter(Mandatory = $true)]
+        [Object] $vsInstance) {
 
-    $vsIdeFolderPath = GetVSIDEFolderPath $vsVersion
-    $vsFilePath = Join-Path $vsIdeFolderPath 'devenv.exe'
+    Write-Host "Updating configuration for $($vsInstance.productPath)"
 
-    Write-Host "Updating configuration for $vsFilePath"
-
-    Start-Process -FilePath $vsFilePath -ArgumentList '/updateConfiguration' -Wait
+    Start-Process -FilePath $vsInstance.productPath -ArgumentList '/updateConfiguration' -Wait
 }
 
 function UpdateVSInstaller {
     param(
-        [ValidateSet("16.0")]
         [string]$VSVersion,
         [Parameter(Mandatory = $true)]
         [int]$ProcessExitTimeoutInSeconds
     )
 
-    $vsMajorVersion = [System.Version]::Parse($VSVersion).Major
-
-    # The public Preview channel is intentional since the --update command will update the installer to the latest public preview version.  
-    # It matches the channel of VS installed on CI 
-    $vsBootstrapperUrl = "https://aka.ms/vs/$vsMajorVersion/pre/vs_enterprise.exe"
+    # The public Preview channel is intentional since the --update command will update the installer to the latest public preview version.
+    # It matches the channel of VS installed on CI
+    $vsBootstrapperUrl = "https://aka.ms/vs/$VSVersion/pre/vs_enterprise.exe"
 
     $tempdir = [System.IO.Path]::GetTempPath()
     $VSBootstrapperPath =  "$tempdir" + "vs_enterprise.exe"
-    if (Test-Path $VSBootstrapperPath) 
+    if (Test-Path $VSBootstrapperPath)
     {
         Remove-Item $VSBootstrapperPath
     }
-    
-    Write-Host "Downloading [$VSBootstrapperUrl]`nSaving at [$VSBootstrapperPath]" 
+
+    Write-Host "Downloading [$VSBootstrapperUrl]`nSaving at [$VSBootstrapperPath]"
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     Invoke-WebRequest -Uri $VSBootstrapperUrl -OutFile $VSBootstrapperPath
 
@@ -248,8 +270,8 @@ function UpdateVSInstaller {
 
 function ResumeVSInstall {
     param(
-        [ValidateSet("16.0")]
-        [string]$VSVersion,
+        [Parameter(Mandatory = $true)]
+        [Object]$VSInstance,
         [Parameter(Mandatory = $true)]
         [int]$ProcessExitTimeoutInSeconds
     )
@@ -259,7 +281,7 @@ function ResumeVSInstall {
         $ProgramFilesPath = ${env:ProgramFiles(x86)}
     }
     $VSInstallerPath = "$ProgramFilesPath\Microsoft Visual Studio\Installer\vs_installer.exe"
-    $VSFolderPath = GetVSFolderPath $VSVersion
+    $VSFolderPath = $VSInstance.installationPath
 
     Write-Host 'Resuming any incomplete install'
     $args = "resume --installPath ""$VSFolderPath"" -q"
@@ -269,6 +291,9 @@ function ResumeVSInstall {
     if ($p.ExitCode -ne 0) {
         if ($p.ExitCode -eq 1)
         {
+            $vsExeVersion = $VSInstance.installationVersion
+            $VSVersion = $vsExeVersion.Substring(0, $vsExeVersion.IndexOf('.'))
+
             Write-Host "VS installer appears to need updating. Updating VS installer."
             $resumeResult = UpdateVSInstaller $VSVersion $ProcessExitTimeoutInSeconds
             if ( $resumeResult -eq $true) {
@@ -288,56 +313,18 @@ function ResumeVSInstall {
     }
 }
 
-function UninstallVSIX {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$vsixID,
-        [Parameter(Mandatory = $true)]
-        [ValidateSet("16.0")]
-        [string]$VSVersion,
-        [Parameter(Mandatory = $true)]
-        [int]$ProcessExitTimeoutInSeconds
-    )
-
-    $VSIXInstallerPath = GetVSIXInstallerPath $VSVersion
-
-    Write-Host 'Uninstalling VSIX...'
-    $args = "/q /a /u:$vsixID"
-    Write-Host """$VSIXInstallerPath"" $args"
-    $p = start-process "$VSIXInstallerPath" -Wait -PassThru -NoNewWindow -ArgumentList $args
-
-    if ($p.ExitCode -ne 0) {
-        if ($p.ExitCode -eq 1002) {
-            Write-Host "VSIX already uninstalled. Moving on to installing the VSIX! Exit code: $($p.ExitCode)"
-            return $true
-        }
-        else {
-            Write-Error "Error uninstalling the VSIX! Exit code: $($p.ExitCode)"
-            return $false
-        }
-    }
-
-    WaitForProcessExit -ProcessName $VSInstallerProcessName -TimeoutInSeconds $ProcessExitTimeoutInSeconds
-    Write-Host "VSIX has been uninstalled successfully."
-
-    return $true
-}
-
 function DowngradeVSIX {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$vsixID,
-        [Parameter(Mandatory = $true)]
-        [ValidateSet("16.0")]
-        [string]$VSVersion,
+        [Object]$VSInstance,
         [Parameter(Mandatory = $true)]
         [int]$ProcessExitTimeoutInSeconds
     )
 
-    $VSIXInstallerPath = GetVSIXInstallerPath $VSVersion
+    $VSIXInstallerPath = GetVSIXInstallerPath $VSInstance
 
     Write-Host 'Downgrading VSIX...'
-    $args = "/q /a /d:$vsixID"
+    $args = "/q /a /d:NuGet.72c5d240-f742-48d4-a0f1-7016671e405b /instanceIds:$($VSInstance.instanceId)"
     Write-Host """$VSIXInstallerPath"" $args"
     $p = start-process "$VSIXInstallerPath" -Wait -PassThru -NoNewWindow -ArgumentList $args
 
@@ -345,6 +332,8 @@ function DowngradeVSIX {
         if ($p.ExitCode -eq -2146233079)
         {
             Write-Host "Previous VSIX install appears not to have completed. Resuming VS install."
+            $exeVersion = $VSInstance.installationVersion
+            $VSVersion = $exeVersion.Substring(0, $exeVersion.IndexOf("."))
             $resumeResult = ResumeVSInstall $VSVersion $ProcessExitTimeoutInSeconds
             if ( $resumeResult -eq $true) {
                 Write-Host """$VSIXInstallerPath"" $args"
@@ -353,7 +342,7 @@ function DowngradeVSIX {
         }
 
         if ($p.ExitCode -eq 2001) {
-            Write-Host "This VS2017 version does not support downgrade. Moving on to installing the VSIX! Exit code: $($p.ExitCode)" 
+            Write-Host "This VS2017 version does not support downgrade. Moving on to installing the VSIX! Exit code: $($p.ExitCode)"
             return $true
         }
         elseif ($p.ExitCode -ne 0) {
@@ -374,13 +363,12 @@ function InstallVSIX {
         [Parameter(Mandatory = $true)]
         [string]$vsixpath,
         [Parameter(Mandatory = $true)]
-        [ValidateSet("16.0")]
-        [string]$VSVersion,
+        [Object]$VSInstance,
         [Parameter(Mandatory = $true)]
         [int]$ProcessExitTimeoutInSeconds
     )
 
-    $VSIXInstallerPath = GetVSIXInstallerPath $VSVersion
+    $VSIXInstallerPath = GetVSIXInstallerPath $VSInstance
 
     Write-Host "Installing VSIX from $vsixpath..."
     $args = "/q /a $vsixpath"
@@ -400,7 +388,12 @@ function InstallVSIX {
 
 
 function ClearMEFCache {
-    $mefCachePath = GetMEFCachePath
+    param(
+        [Parameter(Mandatory = $true)]
+        [Object]$VSInstance
+    )
+
+    $mefCachePath = GetMEFCachePath $VSInstance
 
     Write-Host "rm -r $mefCachePath..."
     rm -r $mefCachePath
